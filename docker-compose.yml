@@ -1,0 +1,191 @@
+version: '3.8'
+
+services:
+  postgres-rh:
+    image: postgres:15-alpine
+    container_name: postgres-rh
+    restart: always
+    environment:
+      POSTGRES_USER: rh_user
+      POSTGRES_PASSWORD: rh_password
+      POSTGRES_DB: rh_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_rh:/var/lib/postgresql/data
+    networks:
+      - artemis-network
+
+
+  artemis-rh-api:
+    build:
+      context: ./artemis-rh-api
+    container_name: artemis-rh-api
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-rh:5432/rh_db
+      - SPRING_DATASOURCE_USERNAME=rh_user
+      - SPRING_DATASOURCE_PASSWORD=rh_password
+    depends_on:
+      - postgres-rh
+    networks:
+      - artemis-network
+
+  artemis-mcp-rh:
+    build:
+      context: ./artemis-mcp-rh
+    container_name: artemis-mcp-rh
+    restart: always
+    ports:
+      - "8082:8080"
+    networks:
+      - artemis-network
+
+  artemis-api:
+    build:
+      context: ./artemis-api
+    container_name: artemis-api
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_AI_OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - MCP_SERVERS=http://artemis-mcp-rh:8080,http://artemis-mcp-frotas:8080,http://artemis-mcp-userman:8080
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - artemis-network
+
+  artemis-front:
+    build:
+      context: ./artemis-front
+    container_name: artemis-front
+    restart: always
+    ports:
+      - "4200:80"
+    networks:
+      - artemis-network
+
+  postgres-userman:
+    image: postgres:15-alpine
+    container_name: postgres-userman
+    restart: always
+    environment:
+      POSTGRES_USER: userman_user
+      POSTGRES_PASSWORD: userman_password
+      POSTGRES_DB: userman_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata_userman:/var/lib/postgresql/data
+    networks:
+      - artemis-network
+
+  flyway-userman:
+    image: flyway/flyway:10-alpine
+    container_name: flyway-userman
+    command: migrate
+    volumes:
+      - ./database/migrations/userman:/flyway/sql
+      - ./database/conf/flyway-userman.conf:/flyway/conf/flyway.conf
+    depends_on:
+      - postgres-userman
+    networks:
+      - artemis-network
+
+  postgres-frotas:
+    image: postgres:15-alpine
+    container_name: postgres-frotas
+    restart: always
+    environment:
+      POSTGRES_USER: frotas_user
+      POSTGRES_PASSWORD: frotas_password
+      POSTGRES_DB: frotas_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata_frotas:/var/lib/postgresql/data
+    networks:
+      - artemis-network
+
+  flyway-frotas:
+    image: flyway/flyway:10-alpine
+    container_name: flyway-frotas
+    command: migrate
+    volumes:
+      - ./database/migrations/frotas:/flyway/sql
+      - ./database/conf/flyway-frotas.conf:/flyway/conf/flyway.conf
+    depends_on:
+      - postgres-frotas
+    networks:
+      - artemis-network
+
+  artemis-frotas-api:
+    build:
+      context: ./artemis-frotas-api
+    container_name: artemis-frotas-api
+    restart: always
+    ports:
+      - "8085:8085"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-frotas:5432/frotas_db
+      - SPRING_DATASOURCE_USERNAME=frotas_user
+      - SPRING_DATASOURCE_PASSWORD=frotas_password
+    depends_on:
+      - postgres-frotas
+      - flyway-frotas
+    networks:
+      - artemis-network
+
+  artemis-mcp-frotas:
+    build:
+      context: ./artemis-mcp-frotas
+    container_name: artemis-mcp-frotas
+    restart: always
+    ports:
+      - "8086:8080"
+    environment:
+      - FROTAS_API_URL=http://artemis-frotas-api:8085/graphql
+    networks:
+      - artemis-network
+
+  artemis-userman-api:
+    build:
+      context: ./artemis-userman-api
+    container_name: artemis-userman-api
+    restart: always
+    ports:
+      - "8084:8084"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-userman:5432/userman_db
+      - SPRING_DATASOURCE_USERNAME=userman_user
+      - SPRING_DATASOURCE_PASSWORD=userman_password
+    depends_on:
+      - postgres-userman
+      - flyway-userman
+    networks:
+      - artemis-network
+
+  artemis-mcp-userman:
+    build:
+      context: ./artemis-mcp-userman
+    container_name: artemis-mcp-userman
+    restart: always
+    ports:
+      - "8083:8080"
+    environment:
+      - USERMAN_API_URL=http://artemis-userman-api:8084/api/users
+    networks:
+      - artemis-network
+
+networks:
+  artemis-network:
+    driver: bridge
+
+volumes:
+  pgdata_rh:
+  pgdata_userman:
+  pgdata_frotas:

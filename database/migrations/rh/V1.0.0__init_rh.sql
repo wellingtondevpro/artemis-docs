@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS funcionarios (
+    id BIGSERIAL PRIMARY KEY,
+    nome VARCHAR(255) NOT NULL,
+    cargo VARCHAR(100) NOT NULL,
+    salario DOUBLE PRECISION NOT NULL
+);
+
+
